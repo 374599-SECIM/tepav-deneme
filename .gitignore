@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+*.pkl
+
+# Credentials
+cred.json
+
+# Data & Cache
+data_cache/
+data/
+Crawler/*.xlsx
+Crawler/*.parquet
+Crawler/html_cache/
+
+# Scripts (only HTML goes to GitHub Pages)
+*.py
+config/
+requirements.txt
+CLAUDE.md
+project_todo.md
+
+# System
+.DS_Store
+Thumbs.db
