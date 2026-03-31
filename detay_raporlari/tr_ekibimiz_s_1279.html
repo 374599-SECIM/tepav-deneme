@@ -44,7 +44,8 @@
                     transform: scale(1.1);
                 }
             </style>
-        </head>
+        <script src="https://cdn.tailwindcss.com"></script>
+</head>
         <body>
             <!-- Sidebar Injection (Simplified for Detail Pages or passed from arg) -->
             <!-- Ideally we'd pass the full menu, but for now let's add the button and require the sidebar script -->
@@ -148,7 +149,192 @@
                     <p class="text-muted small">Son Güncelleme: 30.03.2026 17:32</p>
                 </div>
 
-                <!-- KPI Kartları -->
+                
+            <!-- TEPAV AUTHOR SCORECARD MODULE -->
+            <div class="bg-gray-50 rounded-2xl p-6 mb-12 border border-gray-200" id="author-scorecard-root">
+                <div class="mb-4 flex justify-between items-center text-sm border-b border-gray-100 pb-2">
+                    <a href="yazarlar_karsilastirma.html" class="text-blue-600 hover:text-blue-800 flex items-center transition font-semibold">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                        </svg>
+                        Yazar Analiz Merkezi
+                    </a>
+                    <a href="../index.html" class="text-gray-500 hover:text-gray-700 flex items-center transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                        </svg>
+                        Canlı Panel
+                    </a>
+                </div>
+                <div class="flex flex-col md:flex-row justify-between items-center mb-8">
+                    <div class="flex items-center space-x-6 mb-4 md:mb-0">
+                        <div class="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center text-3xl font-bold text-blue-600 border-4 border-white shadow-sm">
+                            LG
+                        </div>
+                        <div>
+                            <h2 class="text-3xl font-extrabold text-slate-900 tracking-tight">Yazar Performans Karnesi</h2>
+                            <p class="text-gray-500 font-medium">12 Aylık Gelişim & Etki Analizi</p>
+                        </div>
+                    </div>
+                     <!-- Month Selector -->
+                    <div class="bg-white p-2 rounded-lg shadow-sm border border-gray-200">
+                        <label for="monthSelect" class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1 px-1">Dönem Seçiniz</label>
+                        <select id="monthSelect" onchange="updateDashboard(this.value)" class="block w-48 pl-3 pr-10 py-2 text-sm border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md bg-gray-50 font-semibold text-gray-700">
+                            <!-- Options populated by JS -->
+                        </select>
+                    </div>
+                </div>
+                
+                 <!-- KPI Grid -->
+                 <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+                    <div class="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                        <div class="text-xs font-bold text-gray-400 uppercase tracking-wider">Toplam Etki</div>
+                        <div class="text-2xl font-black text-blue-600 mt-1" id="val_impact">81</div>
+                        <div class="text-[9px] text-gray-500 mt-2 leading-tight">Tüm içeriklerin toplam etkileşim skoru (son 90 gün). Görüntülenme, indirme ve etkileşimlerin ağırlıklı toplamı.</div>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                        <div class="text-xs font-bold text-gray-400 uppercase tracking-wider">Momentum Skoru</div>
+                        <div class="text-2xl font-black text-purple-600 mt-1" id="val_momentum">0</div>
+                        <div class="text-[10px] text-purple-400 font-medium mt-1">CANLILIK ENDEKSİ</div>
+                        <div class="text-[9px] text-gray-500 mt-2 leading-tight">Blog ve yazılarının (görüntülenme + indirme) ve profil sayfasının görüntülenmesinin zaman ağırlıklı toplamı. Yakın zamana daha fazla ağırlık verilir.</div>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                        <div class="text-xs font-bold text-gray-400 uppercase tracking-wider">Profil Çekimi</div>
+                        <div class="text-2xl font-black text-pink-600 mt-1" id="val_magnetism">0</div>
+                        <div class="text-[10px] text-pink-400 font-medium mt-1">BİYOGRAFİ TRAFİĞİ</div>
+                        <div class="text-[9px] text-gray-500 mt-2 leading-tight">Yazarın biyografi sayfasına yapılan ziyaret sayısı (son 90 gün). Yüksek değer, yazarın marka değerinin güçlü olduğunu gösterir.</div>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                        <div class="text-xs font-bold text-gray-400 uppercase tracking-wider">Verimlilik</div>
+                        <div class="text-2xl font-black text-green-600 mt-1" id="val_efficiency">3.0</div>
+                        <div class="text-[10px] text-gray-400 mt-1">GÖRÜNTÜLENME / YAZI</div>
+                        <div class="text-[9px] text-gray-500 mt-2 leading-tight">İçerik başına ortalama görüntülenme sayısı (son 90 gün). Kalite göstergesi: Her yazının ne kadar ilgi gördüğü.</div>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                        <div class="text-xs font-bold text-gray-400 uppercase tracking-wider">Üretkenlik</div>
+                        <div class="text-2xl font-black text-orange-600 mt-1" id="val_productivity">27</div>
+                        <div class="text-[10px] text-gray-400 mt-1">TOPLAM YAZI (YILLIK)</div>
+                        <div class="text-[9px] text-gray-500 mt-2 leading-tight">Yazara atfedilen toplam içerik sayısı. Yüksek değer, üretkenliği gösterir.</div>
+                    </div>
+                </div>
+                
+                <!-- Charts -->
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    <!-- Radar -->
+                    <div class="lg:col-span-5 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+                        <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wide mb-4 text-center">Performans Dağılımı</h3>
+                        <div id="radarChart" class="w-full h-64"></div>
+                    </div>
+                    <!-- Momentum Trend -->
+                    <div class="lg:col-span-7 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+                        <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wide mb-4 text-center">Momentum Trendi (Son 1 Yıl)</h3>
+                        <div id="momentumChart" class="w-full h-64"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <script>
+                // Embedded Data
+                var historyData = {"2025-04": {"productivity": 0, "total_impact": 0, "efficiency": 0.0, "momentum": 0, "consistency": 0.0, "profile_magnetism": 0}, "2025-05": {"productivity": 0, "total_impact": 0, "efficiency": 0.0, "momentum": 0, "consistency": 0.0, "profile_magnetism": 0}, "2025-06": {"productivity": 0, "total_impact": 0, "efficiency": 0.0, "momentum": 0, "consistency": 0.0, "profile_magnetism": 0}, "2025-07": {"productivity": 0, "total_impact": 0, "efficiency": 0.0, "momentum": 0, "consistency": 0.0, "profile_magnetism": 0}, "2025-08": {"productivity": 0, "total_impact": 0, "efficiency": 0.0, "momentum": 0, "consistency": 0.0, "profile_magnetism": 0}, "2025-09": {"productivity": 0, "total_impact": 0, "efficiency": 0.0, "momentum": 0, "consistency": 0.0, "profile_magnetism": 0}, "2025-10": {"productivity": 0, "total_impact": 0, "efficiency": 0.0, "momentum": 0, "consistency": 0.0, "profile_magnetism": 0}, "2025-11": {"productivity": 31, "total_impact": 57, "efficiency": 1.8387096774193548, "momentum": 40, "consistency": 7.691216179382651, "profile_magnetism": 17}, "2025-12": {"productivity": 39, "total_impact": 137, "efficiency": 3.5128205128205128, "momentum": 56, "consistency": 8.31905540150061, "profile_magnetism": 17}, "2026-01": {"productivity": 41, "total_impact": 218, "efficiency": 5.317073170731708, "momentum": 65, "consistency": 8.31905540150061, "profile_magnetism": 23}, "2026-02": {"productivity": 36, "total_impact": 161, "efficiency": 4.472222222222222, "momentum": 7, "consistency": 12.240090266860815, "profile_magnetism": 2}, "2026-03": {"productivity": 27, "total_impact": 81, "efficiency": 3.0, "momentum": 0, "consistency": 10.38457382890318, "profile_magnetism": 0}};
+                var normData = {"2025-04": {"productivity": 0.0, "total_impact": 0.0, "efficiency": 0.0, "momentum": 0.0, "consistency": 0.0, "profile_magnetism": 0.0}, "2025-05": {"productivity": 0.0, "total_impact": 0.0, "efficiency": 0.0, "momentum": 0.0, "consistency": 0.0, "profile_magnetism": 0.0}, "2025-06": {"productivity": 0.0, "total_impact": 0.0, "efficiency": 0.0, "momentum": 0.0, "consistency": 0.0, "profile_magnetism": 0.0}, "2025-07": {"productivity": 0.0, "total_impact": 0.0, "efficiency": 0.0, "momentum": 0.0, "consistency": 0.0, "profile_magnetism": 0.0}, "2025-08": {"productivity": 0.0, "total_impact": 0.0, "efficiency": 0.0, "momentum": 0.0, "consistency": 0.0, "profile_magnetism": 0.0}, "2025-09": {"productivity": 0.0, "total_impact": 0.0, "efficiency": 0.0, "momentum": 0.0, "consistency": 0.0, "profile_magnetism": 0.0}, "2025-10": {"productivity": 0.0, "total_impact": 0.0, "efficiency": 0.0, "momentum": 0.0, "consistency": 0.0, "profile_magnetism": 0.0}, "2025-11": {"productivity": 9.064327485380117, "total_impact": 3.877551020408163, "efficiency": 2.246895736153998, "momentum": 6.472491909385113, "consistency": 7.691216179382651, "profile_magnetism": 7.083333333333333}, "2025-12": {"productivity": 6.074766355140187, "total_impact": 3.3860603064755317, "efficiency": 2.861768238550316, "momentum": 3.952011291460833, "consistency": 8.31905540150061, "profile_magnetism": 6.343283582089552}, "2026-01": {"productivity": 5.263157894736842, "total_impact": 3.508771929824561, "efficiency": 3.5565706827636845, "momentum": 6.114769520225776, "consistency": 8.31905540150061, "profile_magnetism": 2.203065134099617}, "2026-02": {"productivity": 4.8517520215633425, "total_impact": 3.394476069997892, "efficiency": 2.9914529914529915, "momentum": 5.64516129032258, "consistency": 12.240090266860815, "profile_magnetism": 1.6528925619834711}, "2026-03": {"productivity": 4.81283422459893, "total_impact": 3.739612188365651, "efficiency": 3.404255319148936, "momentum": 0.0, "consistency": 10.38457382890318, "profile_magnetism": 0.0}};
+                
+                // --- Logic ---
+                // Populate Dropdown
+                var monthSelect = document.getElementById('monthSelect');
+                var months = Object.keys(historyData).sort();
+                var latestMonth = months[months.length - 1];
+                
+                months.reverse().forEach(function(m) {
+                    var option = document.createElement("option");
+                    option.value = m;
+                    option.text = m;
+                    if(m === latestMonth) option.selected = true;
+                    monthSelect.appendChild(option);
+                });
+                
+                function updateDashboard(month) {
+                    var data = historyData[month];
+                    var norm = normData[month];
+                    if (!data) return;
+                    
+                    // Simple animate function could go here
+                    document.getElementById('val_impact').innerText = new Intl.NumberFormat('en-US').format(data.total_impact);
+                    document.getElementById('val_momentum').innerText = new Intl.NumberFormat('en-US').format(data.momentum);
+                    document.getElementById('val_magnetism').innerText = new Intl.NumberFormat('en-US').format(data.profile_magnetism);
+                    document.getElementById('val_efficiency').innerText = data.efficiency.toFixed(1);
+                    document.getElementById('val_productivity').innerText = data.productivity;
+                    
+                    // Update Radar
+                    // Check if chart exists
+                    var chart = document.getElementById('radarChart');
+                    if (chart && chart.data) {
+                         Plotly.restyle('radarChart', {
+                            r: [[norm.total_impact, norm.momentum, norm.profile_magnetism, norm.efficiency, norm.productivity, norm.consistency]]
+                         });
+                    }
+                }
+                
+                // Initialize Charts
+                // RADAR
+                var initialNorm = normData[latestMonth] || {};
+                var radarData = [{
+                    type: 'scatterpolar',
+                    r: [
+                        initialNorm.total_impact || 0, 
+                        initialNorm.momentum || 0, 
+                        initialNorm.profile_magnetism || 0,
+                        initialNorm.efficiency || 0,
+                        initialNorm.productivity || 0,
+                        initialNorm.consistency || 0
+                    ],
+                    theta: ['Etki', 'Momentum', 'Profil', 'Verimlilik', 'Üretkenlik', 'İstikrar'],
+                    fill: 'toself',
+                    line: {color: '#2563eb'},
+                    hovertemplate: 'Skor: %{r:.1f}<extra></extra>'
+                }];
+                
+                var radarLayout = {
+                    polar: {
+                        radialaxis: { visible: true, range: [0, 100], showticklabels: false }
+                    },
+                    margin: { t: 20, b: 20, l: 30, r: 30 },
+                    height: 250,
+                    showlegend: false
+                };
+                Plotly.newPlot('radarChart', radarData, radarLayout, {displayModeBar: false});
+                
+                // MOMENTUM LINE
+                // We need the momentum history for the selected month? No, usually trend is static history or updates?
+                // The user wants "Momentum Score Line Grafiği".
+                // Let's show the full history curve we calculated in 'mom_dates'/values earlier?
+                // But row data structure is different now. We can extract momentum from historyData keys.
+                
+                var momDates = Object.keys(historyData).sort();
+                var momValues = momDates.map(m => historyData[m].momentum);
+                
+                var momTrace = {
+                    x: momDates,
+                    y: momValues,
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    line: {color: '#9333ea', shape: 'spline', width: 3},
+                    marker: {size: 6, color: '#FFFFFF', line: {color: '#9333ea', width: 2}}
+                };
+                
+                var momLayout = {
+                    margin: { t: 10, b: 30, l: 40, r: 10 },
+                    height: 250,
+                    xaxis: { showgrid: false, tickformat: '%Y-%m', nticks: 5 },
+                    yaxis: { showgrid: true, gridcolor: '#f3f4f6' },
+                    showlegend: false
+                };
+                Plotly.newPlot('momentumChart', [momTrace], momLayout, {displayModeBar: false});
+                
+            </script>
+            <!-- END SCORECARD MODULE -->
+            
+<div class='mt-12 mb-6 border-b pb-2'><h3 class='text-2xl font-bold text-slate-800'>Sayfa Detay Raporu (Web Analitiği)</h3></div>
+<!-- KPI Kartları -->
                 <div class="row">
                     <div class="col-md-3">
                         <div class="kpi-card" style="border-left-color: #0d6efd;">
