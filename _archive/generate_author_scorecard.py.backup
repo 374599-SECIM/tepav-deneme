@@ -1,0 +1,887 @@
+import pandas as pd
+import numpy as np
+from analytics_helper import AnalyticsHelper
+import os
+from datetime import datetime, timedelta
+import plotly.graph_objects as go
+import plotly.express as px
+import math
+import json
+
+class AuthorScorecardGenerator:
+    def __init__(self):
+        self.analytics = AnalyticsHelper()
+        self.mapping_file = "Crawler/author_content_mapping.parquet"
+        self.output_dir = "detay_raporlari"
+        if not os.path.exists(self.output_dir):
+            os.makedirs(self.output_dir)
+            
+    def load_mapping(self):
+        if not os.path.exists(self.mapping_file):
+            print(f"Mapping file {self.mapping_file} not found. Please run extract_authors.py first.")
+            return None
+        return pd.read_parquet(self.mapping_file)
+
+    def fetch_analytics_data(self, urls):
+        """Fetch daily traffic for the given list of URLs."""
+        print("Fetching analytics data (this may take a while)...")
+        
+        # We need daily data for momentum
+        # To avoid API quotas, let's fetch in chunks or just fetch 'pagePath' + 'date' for ALL pages 
+        # (The helper now handles pagination so we can request big datasets)
+        
+        # We need to filter for only the relevant URLs effectively?
+        # Actually, GA4 run_report with 10k+ pages in a filter is tricky.
+        # Better approach: Fetch ALL date+pagePath data for the site and filter locally.
+        # This is heavy but robust.
+        
+        start_date = "180daysAgo" # 6 months history for momentum graph
+        
+        from google.analytics.data_v1beta.types import DateRange
+        
+        df_daily = self.analytics.run_report(
+            dimensions=["date", "pagePath"],
+            metrics=["screenPageViews"], # Start with views only for momentum to keep it lighter
+            date_range=DateRange(start_date=start_date, end_date="today"),
+            limit=500000 # Cap to avoid infinite loop safety, but 500k rows is decent
+        )
+        
+        # Note: 'file_download' is an event, so it won't show up in metrics blindly unless we filter by eventName.
+        # For 'Downloads', we usually need a separate query or assume Downloads ~ Views * Ratio (simplified)
+        # Or, we can do a second query for Downloads.
+        # Let's trust the Views for Momentum for now.
+        
+        return df_daily
+
+    def load_or_fetch_data(self):
+        cache_path = "Crawler/analytics_daily_cache.parquet"
+        if os.path.exists(cache_path):
+             # Basic cache expiration check could be added here
+             print("Loading analytics from local cache...")
+             return pd.read_parquet(cache_path)
+             
+        df = self.fetch_analytics_data(None)
+        if not df.empty:
+            df.to_parquet(cache_path)
+        return df
+
+    def calculate_scores(self, df_mapping, df_analytics):
+        print("Calculating scores...")
+        
+        # 1. Load All Authors from Ekibimiz
+        print("Loading author profiles from Ekibimiz...")
+        all_authors_dict = {} # ID -> Name
+        author_profile_map = {} # Name -> URL
+        
+        try:
+            df_profiles = pd.read_excel('Crawler/ekibimiz.xlsx')
+            df_profiles['clean_url'] = df_profiles['url'].astype(str).str.rstrip('/')
+            df_profiles['id_str'] = df_profiles['url'].astype(str).apply(lambda x: x.rstrip('/').split('/')[-1] if '/s/' in str(x) else None)
+            
+            # Apply canonical map to profiles too
+            mapping_path = 'author_canonical_mapping.json'
+            if os.path.exists(mapping_path):
+                with open(mapping_path, 'r', encoding='utf-8') as f:
+                    canon_data = json.load(f)
+                    c_map = canon_data.get('canonical_map', {})
+                    df_profiles['id_str'] = df_profiles['id_str'].astype(str).map(c_map).fillna(df_profiles['id_str'])
+            
+            # Filter valid
+            valid_profiles = df_profiles.dropna(subset=['id_str'])
+            
+            # Populate maps (After deduplication, we might have multiple names for one ID, 
+            # we'll take the first one or the name mapping from json)
+            if os.path.exists(mapping_path):
+                 with open(mapping_path, 'r', encoding='utf-8') as f:
+                    canon_data = json.load(f)
+                    all_authors_dict = canon_data.get('id_to_name', {})
+            else:
+                all_authors_dict = dict(zip(valid_profiles['id_str'], valid_profiles['author_name']))
+            
+            author_profile_map = dict(zip(valid_profiles['author_name'], valid_profiles['clean_url']))
+            print(f"Loaded {len(all_authors_dict)} canonical authors from Ekibimiz.")
+            
+        except Exception as e:
+            print(f"Error loading ekibimiz.xlsx: {e}")
+
+        # 2. Merge Analytics with Content Mapping
+        if df_analytics.empty:
+            print("Warning: Analytics data is empty!")
+            merged = pd.DataFrame()
+        else:
+            if 'pagePath' not in df_analytics.columns:
+                 print("Error: 'pagePath' column missing from analytics.")
+                 return pd.DataFrame()
+
+            df_analytics['clean_path'] = df_analytics['pagePath'].astype(str).str.rstrip('/')
+            df_mapping['clean_path'] = df_mapping['url'].astype(str).str.rstrip('/')
+            
+            # --- joint-author attribution ---
+            # Count authors per content piece
+            print("Calculating author counts per content piece for joint attribution...")
+            content_author_counts = df_mapping.groupby('clean_path')['author_id'].nunique().to_dict()
+            
+            # Merge
+            merged = pd.merge(df_analytics, df_mapping, left_on='clean_path', right_on='clean_path', how='inner')
+            merged['date_x'] = pd.to_datetime(merged['date_x'])
+            
+            # Divide metrics by author count
+            print("Applying joint merit distribution (splitting views among authors)...")
+            merged['author_count'] = merged['clean_path'].map(content_author_counts).fillna(1)
+            merged['screenPageViews'] = merged['screenPageViews'] / merged['author_count']
+
+            # --- Canonical Deduplication ---
+            mapping_path = 'author_canonical_mapping.json'
+            if os.path.exists(mapping_path):
+                print("Applying canonical author deduplication...")
+                with open(mapping_path, 'r', encoding='utf-8') as f:
+                    canon_data = json.load(f)
+                    c_map = canon_data.get('canonical_map', {})
+                    merged['author_id'] = merged['author_id'].astype(str).map(c_map).fillna(merged['author_id'])
+            
+            # Ensure author_id is string
+            merged['author_id'] = merged['author_id'].astype(str)
+
+
+        # Define Snapshots: Last 12 Months (Month Ends)
+        today = datetime.now()
+        snapshot_dates = []
+        for i in range(12):
+            d = today - pd.DateOffset(months=i)
+            d_end = d + pd.tseries.offsets.MonthEnd(0)
+            if d_end > today: d_end = today
+            snapshot_dates.append(d_end)
+        
+        snapshot_dates = sorted(list(set(snapshot_dates)))
+        print(f"Snapshots: {[d.strftime('%Y-%m-%d') for d in snapshot_dates]}")
+
+        # 3. Determine Full Set of Author IDs
+        mapping_ids = set()
+        if not merged.empty:
+            mapping_ids = set(merged['author_id'].unique())
+            
+        ekibimiz_ids = set(all_authors_dict.keys())
+        all_ids = mapping_ids.union(ekibimiz_ids)
+        
+        print(f"Total Authors to Score: {len(all_ids)} (Mapped Content: {len(mapping_ids)}, Ekibimiz Profile: {len(ekibimiz_ids)})")
+        
+        author_scores = []
+        decay_rate = 0.001 ** (1/90)
+
+        for author_id in all_ids:
+            author_id = str(author_id)
+            
+            # Determine Name
+            author_name = all_authors_dict.get(author_id, f"Unknown ({author_id})")
+            if author_name.startswith("Unknown") and not merged.empty:
+                 subset = merged[merged['author_id'] == author_id]
+                 if not subset.empty:
+                     author_name = subset['author_name'].iloc[0]
+
+            # Filter merged data for this author
+            chunk_full = pd.DataFrame()
+            if not merged.empty:
+                chunk_full = merged[merged['author_id'] == author_id].copy()
+            
+            # Pre-calculate Profile Hits for this author
+            profile_hits_full = pd.DataFrame()
+            if author_name in author_profile_map and not df_analytics.empty:
+                p_url = author_profile_map[author_name]
+                ph = df_analytics[df_analytics['clean_path'] == p_url].copy()
+                if not ph.empty:
+                    ph['date'] = pd.to_datetime(ph['date'])
+                    profile_hits_full = ph
+            
+            # History Container
+            history_data = {}
+            
+            # Optimisation: Pre-group daily views
+            if not chunk_full.empty:
+                daily_views_full = chunk_full.groupby('date_x')['screenPageViews'].sum().sort_index()
+            else:
+                daily_views_full = pd.Series(dtype='float64')
+                daily_views_full.index = pd.DatetimeIndex([])
+
+            if not profile_hits_full.empty:
+                daily_p_views_full = profile_hits_full.groupby('date')['screenPageViews'].sum().sort_index()
+            else:
+                daily_p_views_full = pd.Series(dtype='float64')
+                daily_p_views_full.index = pd.DatetimeIndex([])
+
+
+            for snap_date in snapshot_dates:
+                # Window: [SnapDate - 365, SnapDate]
+                start_window = snap_date - pd.Timedelta(days=365)
+                
+                # Filter Views for Window (Standard Metrics)
+                # Productivity, Impact, Efficiency, Consistency are "In Window"
+                
+                # 1. Slice Data
+                # Articles
+                # Use slice of FULL dataset that falls in window
+                mask_window = (chunk_full['date_x'] >= start_window) & (chunk_full['date_x'] <= snap_date)
+                chunk_window = chunk_full[mask_window]
+                
+                # 1. Productivity (Unique Articles in Window)
+                article_count = chunk_window['clean_path'].nunique()
+                
+                # 2. Total Impact (Views in Window)
+                total_views = chunk_window['screenPageViews'].sum()
+                
+                # 3. Efficiency
+                avg_views = total_views / article_count if article_count else 0
+                
+                # 5. Consistency
+                consistency_score = 0
+                if 'date_y' in chunk_window.columns: 
+                     pub_dates = pd.to_datetime(chunk_window['date_y']).dropna().unique()
+                     pub_dates = np.sort(pub_dates)
+                     if len(pub_dates) > 1:
+                         diffs = np.diff(pub_dates).astype('timedelta64[D]').astype(int)
+                         consistency_std = np.std(diffs)
+                         consistency_score = 100 / (1 + consistency_std/30)
+                
+                # 4. Momentum (Point in Time)
+                # M(t) uses ALL history up to t, passed through decay.
+                # Just filter daily views up to snap_date
+                dv_upto = daily_views_full[daily_views_full.index <= snap_date]
+                current_momentum = 0
+                if not dv_upto.empty:
+                    days_diff = (snap_date - dv_upto.index).days
+                    # decay only works if days_diff >= 0, which filter ensures
+                    # Convert to numpy/series to ensure multiplication works
+                    vals = dv_upto.values
+                    factors = decay_rate ** days_diff
+                    # If factors is Index, multiplying by numpy array might yield Index?
+                    # Let's be explicit
+                    current_momentum = np.sum(vals * factors)
+                
+                # 4.5 Magnetism (Point in Time)
+                profile_magnetism = 0
+                if not daily_p_views_full.empty:
+                    dp_upto = daily_p_views_full[daily_p_views_full.index <= snap_date]
+                    if not dp_upto.empty:
+                         p_diff = (snap_date - dp_upto.index).days
+                         p_vals = dp_upto.values
+                         p_factors = decay_rate ** p_diff
+                         profile_magnetism = np.sum(p_vals * p_factors)
+
+                # Save Snapshot
+                label = snap_date.strftime('%Y-%m') # e.g. 2024-01
+                history_data[label] = {
+                    'productivity': int(article_count),
+                    'total_impact': int(total_views),
+                    'efficiency': float(avg_views),
+                    'momentum': int(current_momentum),
+                    'consistency': float(consistency_score),
+                    'profile_magnetism': int(profile_magnetism)
+                }
+
+            # Latest Data (for default view)
+            latest_label = snapshot_dates[-1].strftime('%Y-%m')
+            latest_metrics = history_data[latest_label]
+            
+            # Generate Momentum History (Graph) - based on LATEST snapshot reference?
+            # Or should graph update? 
+            # Graph usually shows Last X days relative to NOW.
+            # Let's keep the graph as "Relative to Latest Snapshot" (Today).
+            # Calculating graph for every past month is too much data payload.
+            
+            # ... (Graph Code Reuse) ...
+            # Recalc history for graph (Last 365 days from Latest)
+            graph_start = snapshot_dates[-1] - pd.Timedelta(days=365)
+            dv_graph = daily_views_full[(daily_views_full.index >= graph_start) & (daily_views_full.index <= snapshot_dates[-1])]
+            # Reindex
+            full_idx = pd.date_range(start=graph_start, end=snapshot_dates[-1], freq='D')
+            dv_graph = dv_graph.reindex(full_idx, fill_value=0)
+            
+            mom_hist = []
+            curr = 0
+            # We need to prime 'curr' with momentum BEFORE graph_start? 
+            # Ideally yes, but approx 0 is okay if window is long.
+            # For better accuracy, calc momentum at graph_start first.
+            # Let's just run from graph_start with 0.
+            
+            for date, views in dv_graph.items():
+                curr = (curr * decay_rate) + views
+                mom_hist.append({'date': date, 'momentum': curr})
+
+            score_item = {
+                'id': author_id,
+                'name': author_name,
+                'metrics_history': history_data, # NEW: structured history
+                # Flatten latest for easy default access
+                'productivity': latest_metrics['productivity'],
+                'total_impact': latest_metrics['total_impact'],
+                'efficiency': latest_metrics['efficiency'],
+                'momentum': latest_metrics['momentum'],
+                'consistency': latest_metrics['consistency'],
+                'profile_magnetism': latest_metrics['profile_magnetism'],
+                
+                'momentum_history': [h['momentum'] for h in mom_hist],
+                'momentum_dates': [h['date'].strftime('%Y-%m-%d') for h in mom_hist],
+                'top_articles': chunk_full.nlargest(5, 'screenPageViews')[['title', 'screenPageViews', 'url']].to_dict('records')
+            }
+            author_scores.append(score_item)
+            
+        return pd.DataFrame(author_scores)
+
+    def generate_radar_chart(self, author_data):
+        # Normalize scores 0-100 for the chart
+        # We need the global maxes to normalize
+        # But here we process one by one.
+        # We'll handle this in the main loop.
+        pass
+
+    def generate_htmls(self, df_scores):
+        print("Generating HTML dashboards...")
+        
+        
+        # Calculate percentiles for normalization
+        cols_to_norm = ['productivity', 'total_impact', 'efficiency', 'momentum', 'consistency', 'profile_magnetism']
+        
+        # 1. Calculate Monthly Maxes for Normalization
+        monthly_maxes = {}
+        all_months = set()
+        for h in df_scores['metrics_history']:
+            all_months.update(h.keys())
+            
+        for m in all_months:
+            maxes = {}
+            for col in cols_to_norm:
+                vals = []
+                for h in df_scores['metrics_history']:
+                    if m in h:
+                        vals.append(h[m].get(col, 0))
+                maxes[col] = max(vals) if vals and max(vals) > 0 else 1
+            monthly_maxes[m] = maxes
+
+        # 2. Create Normalized History Column
+        norm_hist_list = []
+        for _, row in df_scores.iterrows():
+            h_norm = {}
+            for m, scores in row['metrics_history'].items():
+                norm_scores = {}
+                for col in cols_to_norm:
+                    val = scores.get(col, 0)
+                    mx = monthly_maxes.get(m, {}).get(col, 1)
+                    norm_scores[col] = (val / mx) * 100
+                h_norm[m] = norm_scores
+            norm_hist_list.append(h_norm)
+        
+        df_scores['metrics_history_norm'] = norm_hist_list
+
+        # We normalize main columns (latest) as well for dataframe consistency (optional but good)
+        for col in cols_to_norm:
+             max_val = df_scores[col].max()
+             if max_val > 0:
+                 df_scores[f'{col}_norm'] = (df_scores[col] / max_val) * 100
+             else:
+                 df_scores[f'{col}_norm'] = 0
+
+        # Determine latest month
+        sorted_months = sorted(list(all_months))
+        latest_month_key = sorted_months[-1] if sorted_months else None
+        
+        # Map existing files
+        existing_files = os.listdir(self.output_dir)
+        id_to_filename = {}
+        for f in existing_files:
+            if f.startswith("tr_ekibimiz_s_") and f.endswith(".html"):
+                parts = f.split('_')
+                if len(parts) >= 4:
+                    # tr, ekibimiz, s, id, ...
+                    # ID is parts[3]
+                    # Check if ID is numeric
+                    if parts[3].isdigit():
+                        id_to_filename[str(parts[3])] = f
+        
+        print(f"DEBUG: Mapped {len(id_to_filename)} existing files to IDs.")
+        if len(id_to_filename) > 0:
+            print(f"DEBUG: Sample ID mapping: {list(id_to_filename.items())[:3]}")
+
+        for idx, row in df_scores.iterrows():
+            # Determine mapped filename or default
+            target_filename = id_to_filename.get(str(row['id']), f"tr_ekibimiz_s_{row['id']}.html")
+            df_scores.at[idx, 'filename'] = target_filename
+            
+            # DEBUG
+            # print(f"DEBUG: Processing {row['name']} (ID: {row['id']}) -> Target: {target_filename}")
+            
+            # Prepare History Data (JSON)
+            # We already have row['metrics_history'] and row['metrics_history_norm']
+            
+            # JS needs keys to be sorted probably, but dict is fine.
+            history_json = json.dumps(row['metrics_history'])
+            norm_json = json.dumps(row['metrics_history_norm'])
+            
+            # Latest Values for Initial Render
+            latest = row['metrics_history'].get(latest_month_key, {})
+            # Fallback to row values if history missing (shouldn't happen)
+            val_impact = latest.get('total_impact', row['total_impact'])
+            val_mom = latest.get('momentum', row['momentum'])
+            val_mag = latest.get('profile_magnetism', row['profile_magnetism'])
+            val_eff = latest.get('efficiency', row['efficiency'])
+            val_prod = latest.get('productivity', row['productivity'])
+            
+            # Initials
+            parts = row['name'].split()
+            initials = "".join([p[0] for p in parts if p])[:2].upper()
+            
+            # --- Build the Scorecard Section HTML ---
+            # Using Tailwind classes. 
+            # We assume the parent page has Tailwind loaded (we will inject it).
+            
+            scorecard_section = f"""
+            <!-- TEPAV AUTHOR SCORECARD MODULE -->
+            <div class="bg-gray-50 rounded-2xl p-6 mb-12 border border-gray-200" id="author-scorecard-root">
+                <div class="mb-4 flex justify-between items-center text-sm border-b border-gray-100 pb-2">
+                    <a href="yazarlar_karsilastirma.html" class="text-blue-600 hover:text-blue-800 flex items-center transition font-semibold">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                        </svg>
+                        Yazar Analiz Merkezi
+                    </a>
+                    <a href="../index.html" class="text-gray-500 hover:text-gray-700 flex items-center transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                        </svg>
+                        Canlı Panel
+                    </a>
+                </div>
+                <div class="flex flex-col md:flex-row justify-between items-center mb-8">
+                    <div class="flex items-center space-x-6 mb-4 md:mb-0">
+                        <div class="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center text-3xl font-bold text-blue-600 border-4 border-white shadow-sm">
+                            {initials}
+                        </div>
+                        <div>
+                            <h2 class="text-3xl font-extrabold text-slate-900 tracking-tight">Yazar Performans Karnesi</h2>
+                            <p class="text-gray-500 font-medium">12 Aylık Gelişim & Etki Analizi</p>
+                        </div>
+                    </div>
+                     <!-- Month Selector -->
+                    <div class="bg-white p-2 rounded-lg shadow-sm border border-gray-200">
+                        <label for="monthSelect" class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1 px-1">Dönem Seçiniz</label>
+                        <select id="monthSelect" onchange="updateDashboard(this.value)" class="block w-48 pl-3 pr-10 py-2 text-sm border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md bg-gray-50 font-semibold text-gray-700">
+                            <!-- Options populated by JS -->
+                        </select>
+                    </div>
+                </div>
+                
+                 <!-- KPI Grid -->
+                <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+                    <div class="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                        <div class="text-xs font-bold text-gray-400 uppercase tracking-wider">Toplam Etki</div>
+                        <div class="text-2xl font-black text-blue-600 mt-1" id="val_impact">{val_impact:,.0f}</div>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                        <div class="text-xs font-bold text-gray-400 uppercase tracking-wider">Momentum Skoru</div>
+                        <div class="text-2xl font-black text-purple-600 mt-1" id="val_momentum">{val_mom:,.0f}</div>
+                        <div class="text-[10px] text-purple-400 font-medium mt-1">CANLILIK ENDEKSİ</div>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                        <div class="text-xs font-bold text-gray-400 uppercase tracking-wider">Profil Çekimi</div>
+                        <div class="text-2xl font-black text-pink-600 mt-1" id="val_magnetism">{val_mag:,.0f}</div>
+                        <div class="text-[10px] text-pink-400 font-medium mt-1">BİYOGRAFİ TRAFİĞİ</div>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                        <div class="text-xs font-bold text-gray-400 uppercase tracking-wider">Verimlilik</div>
+                        <div class="text-2xl font-black text-green-600 mt-1" id="val_efficiency">{val_eff:.1f}</div>
+                        <div class="text-[10px] text-gray-400 mt-1">GÖRÜNTÜLEME / YAZI</div>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                        <div class="text-xs font-bold text-gray-400 uppercase tracking-wider">Üretkenlik</div>
+                        <div class="text-2xl font-black text-orange-600 mt-1" id="val_productivity">{val_prod}</div>
+                        <div class="text-[10px] text-gray-400 mt-1">TOPLAM YAZI (YILLIK)</div>
+                    </div>
+                </div>
+                
+                <!-- Charts -->
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    <!-- Radar -->
+                    <div class="lg:col-span-5 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+                        <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wide mb-4 text-center">Performans Dağılımı</h3>
+                        <div id="radarChart" class="w-full h-64"></div>
+                    </div>
+                    <!-- Momentum Trend -->
+                    <div class="lg:col-span-7 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+                        <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wide mb-4 text-center">Momentum Trendi (Son 1 Yıl)</h3>
+                        <div id="momentumChart" class="w-full h-64"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <script>
+                // Embedded Data
+                var historyData = {history_json};
+                var normData = {norm_json};
+                
+                // --- Logic ---
+                // Populate Dropdown
+                var monthSelect = document.getElementById('monthSelect');
+                var months = Object.keys(historyData).sort();
+                var latestMonth = months[months.length - 1];
+                
+                months.reverse().forEach(function(m) {{
+                    var option = document.createElement("option");
+                    option.value = m;
+                    option.text = m;
+                    if(m === latestMonth) option.selected = true;
+                    monthSelect.appendChild(option);
+                }});
+                
+                function updateDashboard(month) {{
+                    var data = historyData[month];
+                    var norm = normData[month];
+                    if (!data) return;
+                    
+                    // Simple animate function could go here
+                    document.getElementById('val_impact').innerText = new Intl.NumberFormat('en-US').format(data.total_impact);
+                    document.getElementById('val_momentum').innerText = new Intl.NumberFormat('en-US').format(data.momentum);
+                    document.getElementById('val_magnetism').innerText = new Intl.NumberFormat('en-US').format(data.profile_magnetism);
+                    document.getElementById('val_efficiency').innerText = data.efficiency.toFixed(1);
+                    document.getElementById('val_productivity').innerText = data.productivity;
+                    
+                    // Update Radar
+                    // Check if chart exists
+                    var chart = document.getElementById('radarChart');
+                    if (chart && chart.data) {{
+                         Plotly.restyle('radarChart', {{
+                            r: [[norm.total_impact, norm.momentum, norm.profile_magnetism, norm.efficiency, norm.productivity, norm.consistency]]
+                         }});
+                    }}
+                }}
+                
+                // Initialize Charts
+                // RADAR
+                var initialNorm = normData[latestMonth] || {{}};
+                var radarData = [{{
+                    type: 'scatterpolar',
+                    r: [
+                        initialNorm.total_impact || 0, 
+                        initialNorm.momentum || 0, 
+                        initialNorm.profile_magnetism || 0,
+                        initialNorm.efficiency || 0,
+                        initialNorm.productivity || 0,
+                        initialNorm.consistency || 0
+                    ],
+                    theta: ['Etki', 'Momentum', 'Profil', 'Verimlilik', 'Üretkenlik', 'İstikrar'],
+                    fill: 'toself',
+                    line: {{color: '#2563eb'}},
+                    hovertemplate: 'Skor: %{{r:.1f}}<extra></extra>'
+                }}];
+                
+                var radarLayout = {{
+                    polar: {{
+                        radialaxis: {{ visible: true, range: [0, 100], showticklabels: false }}
+                    }},
+                    margin: {{ t: 20, b: 20, l: 30, r: 30 }},
+                    height: 250,
+                    showlegend: false
+                }};
+                Plotly.newPlot('radarChart', radarData, radarLayout, {{displayModeBar: false}});
+                
+                // MOMENTUM LINE
+                // We need the momentum history for the selected month? No, usually trend is static history or updates?
+                // The user wants "Momentum Score Line Grafiği".
+                // Let's show the full history curve we calculated in 'mom_dates'/values earlier?
+                // But row data structure is different now. We can extract momentum from historyData keys.
+                
+                var momDates = Object.keys(historyData).sort();
+                var momValues = momDates.map(m => historyData[m].momentum);
+                
+                var momTrace = {{
+                    x: momDates,
+                    y: momValues,
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    line: {{color: '#9333ea', shape: 'spline', width: 3}},
+                    marker: {{size: 6, color: '#FFFFFF', line: {{color: '#9333ea', width: 2}}}}
+                }};
+                
+                var momLayout = {{
+                    margin: {{ t: 10, b: 30, l: 40, r: 10 }},
+                    height: 250,
+                    xaxis: {{ showgrid: false, tickformat: '%Y-%m', nticks: 5 }},
+                    yaxis: {{ showgrid: true, gridcolor: '#f3f4f6' }},
+                    showlegend: false
+                }};
+                Plotly.newPlot('momentumChart', [momTrace], momLayout, {{displayModeBar: false}});
+                
+            </script>
+            <!-- END SCORECARD MODULE -->
+            """
+            
+            # --- Merge Logic ---
+            target_filename = f"tr_ekibimiz_s_{row['id']}.html"
+            target_path = os.path.join(self.output_dir, target_filename)
+            
+            merged = False
+            if os.path.exists(target_path):
+                try:
+                    with open(target_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                    
+                    # 1. Inject Tailwind if not present
+                    if "tailwindcss" not in content:
+                        content = content.replace("</head>", '<script src="https://cdn.tailwindcss.com"></script>\n</head>')
+                    
+                    # 2. Update or Inject Scorecard
+                    import re
+                    if "<!-- TEPAV AUTHOR SCORECARD MODULE -->" in content:
+                        # Replace existing (Robust replacement)
+                        # We try to match from the start marker to either the end marker OR the start of the next section
+                        pattern = r"<!-- TEPAV AUTHOR SCORECARD MODULE -->.*?(?:<!-- END SCORECARD MODULE -->|<div class='mt-12 mb-6 border-b pb-2'>)"
+                        new_content = re.sub(pattern, scorecard_section, content, flags=re.DOTALL)
+                        if new_content != content:
+                            content = new_content
+                            merged = True
+                        else:
+                            # Fallback if pattern didn't match perfectly
+                            pass
+
+                    if not merged and "<!-- KPI Kartları -->" in content:
+                        # First time merge or fallback
+                        insertion = scorecard_section + "\n<div class='mt-12 mb-6 border-b pb-2'><h3 class='text-2xl font-bold text-slate-800'>Sayfa Detay Raporu (Web Analitiği)</h3></div>\n"
+                        content = content.replace("<!-- KPI Kartları -->", insertion + "<!-- KPI Kartları -->")
+                        merged = True
+                    
+                    if merged:
+                        # Save
+                        with open(target_path, 'w', encoding='utf-8') as f:
+                            f.write(content)
+                except Exception as e:
+                    print(f"Merge failed for {row['name']}: {e}")
+            
+            if not merged:
+                # Standalone Fallback (if detail report doesn't exist)
+                print(f"Notice: Creating standalone scorecard for {row['name']} (Detail report not found)")
+                html = f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <title>{row['name']} - Yazar Karnesi</title>
+                    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+                    <script src="https://cdn.tailwindcss.com"></script>
+                    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+                    <style>body {{ font-family: 'Inter', sans-serif; }}</style>
+                </head>
+                <body class="bg-gray-50 text-slate-800">
+                    <div class="max-w-7xl mx-auto px-4 py-8">
+                        <a href="yazarlar_karsilastirma.html" class="text-blue-600 hover:underline mb-4 inline-block">&larr; Tüm Yazarlar</a>
+                        {scorecard_section}
+                    </div>
+                </body>
+                </html>
+                """
+                # Note: creating a new file or overwriting? 
+                # If we are here, file didn't exist or read failed.
+                with open(target_path, 'w', encoding='utf-8') as f:
+                     f.write(html)
+            else:
+                # If merged, we need to make sure the format string in scorecard_section was applied
+                # Wait, I used f-string for scorecard_section but it contains {history_json} placeholder inside? 
+                # No, I used `var historyData = {history_json};` inside the f-string. 
+                # This works if I format it.
+                # BUT `scorecard_section` defined above has local variables {initials}, {val_impact} etc directly embedded via f-string.
+                # However, {history_json} and {norm_json} are variables I defined just before.
+                # So the f-string ALREADY interpolated them!
+                # My logic `scorecard_section.format(...)` in the standalone block is WRONG because they are already formatted.
+                # Correct: Just use `scorecard_section` variable.
+                pass 
+            
+
+        # Generate Main Hub
+        self.generate_hub(df_scores)
+
+    def generate_hub(self, df):
+        print("Generating Comparison Hub...")
+        
+        # Prepare Data for Hub JS
+        # List of { id, name, history: { month: { scores... } } }
+        hub_data = []
+        for _, row in df.iterrows():
+            hub_data.append({
+                'id': row['id'],
+                'name': row['name'],
+                'filename': row.get('filename', f"tr_ekibimiz_s_{row['id']}.html"),
+                'history': row['metrics_history']
+            })
+            
+        hub_json = json.dumps(hub_data)
+        
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>Yazar Analiz Merkezi - TEPAV</title>
+            <script src="https://cdn.tailwindcss.com"></script>
+            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+            <style>body {{ font-family: 'Inter', sans-serif; }}</style>
+        </head>
+        <body class="bg-gray-50 text-slate-800">
+            <div class="max-w-6xl mx-auto px-4 py-12">
+            <!-- Navigation -->
+            <div class="flex justify-start mb-6">
+                <a href="../index.html" class="flex items-center text-blue-600 hover:text-blue-800 transition font-semibold">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                      <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+                    </svg>
+                    Canlı Panel'e Dön
+                </a>
+            </div>
+            <div class="mb-10 text-center">
+                <h1 class="text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-700 to-indigo-600 mb-4">Yazar Analiz Merkezi</h1>
+                    <p class="text-xl text-gray-500 mb-8">Performans Metrikleri ve Karşılaştırma Tablosu</p>
+                    
+                    <div class="flex justify-center space-x-4 mb-8">
+                         <!-- Search Bar -->
+                        <div class="relative w-96">
+                            <input type="text" id="authorSearch" placeholder="Yazar ara..." 
+                                class="w-full px-6 py-4 rounded-full border border-gray-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+                                onkeyup="renderTable()">
+                            <div class="absolute right-4 top-4 text-gray-400">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                            </div>
+                        </div>
+                        
+                        <!-- Month Selector -->
+                        <div class="relative">
+                            <select id="monthSelect" onchange="renderTable()" class="h-full px-6 py-4 rounded-full border border-gray-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-lg cursor-pointer appearance-none pr-12">
+                                <!-- Populated by JS -->
+                            </select>
+                            <div class="absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none text-gray-500">▼</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse" id="authorTable">
+                            <thead class="bg-gray-50 text-gray-500 uppercase tracking-wider text-xs">
+                                <tr>
+                                    <th class="py-4 px-6 font-semibold cursor-pointer hover:text-blue-600" onclick="sortTable('name')">Yazar</th>
+                                    <th class="py-4 px-6 text-right font-semibold cursor-pointer hover:text-blue-600" onclick="sortTable('momentum')">Momentum Skoru ⚡</th>
+                                    <th class="py-4 px-6 text-right font-semibold cursor-pointer hover:text-blue-600" onclick="sortTable('profile_magnetism')">Profil Çekimi 🧲</th>
+                                    <th class="py-4 px-6 text-right font-semibold cursor-pointer hover:text-blue-600" onclick="sortTable('total_impact')">Toplam Etki</th>
+                                    <th class="py-4 px-6 text-right font-semibold cursor-pointer hover:text-blue-600" onclick="sortTable('productivity')">Yazı Sayısı</th>
+                                    <th class="py-4 px-6 text-right font-semibold cursor-pointer hover:text-blue-600" onclick="sortTable('efficiency')">Verimlilik</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableBody">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <script>
+                var authors = {hub_json};
+                var currentSort = 'momentum';
+                var sortAsc = false;
+                
+                // Init Month Selector
+                var monthSelect = document.getElementById('monthSelect');
+                if (authors.length > 0) {{
+                    var months = Object.keys(authors[0].history).sort();
+                    var latest = months[months.length - 1];
+                    
+                    months.reverse().forEach(function(m) {{
+                        var opt = document.createElement("option");
+                        opt.value = m;
+                        opt.text = m;
+                        if (m === latest) opt.selected = true;
+                        monthSelect.appendChild(opt);
+                    }});
+                }}
+                
+                function sortTable(key) {{
+                    if (currentSort === key) {{
+                        sortAsc = !sortAsc;
+                    }} else {{
+                        currentSort = key;
+                        sortAsc = false; // Default desc for metrics
+                        if (key === 'name') sortAsc = true;
+                    }}
+                    renderTable();
+                }}
+                
+                function renderTable() {{
+                    var month = document.getElementById('monthSelect').value;
+                    var search = document.getElementById('authorSearch').value.toUpperCase();
+                    var tbody = document.getElementById('tableBody');
+                    tbody.innerHTML = '';
+                    
+                    // Filter and Sort
+                    var filtered = authors.filter(function(a) {{
+                        return a.name.toUpperCase().indexOf(search) > -1;
+                    }});
+                    
+                    filtered.sort(function(a, b) {{
+                        var k = currentSort;
+                        var vA, vB;
+                        
+                        if (k === 'name') {{
+                            vA = a.name; vB = b.name;
+                        }} else {{
+                            vA = a.history[month] ? a.history[month][k] : 0;
+                            vB = b.history[month] ? b.history[month][k] : 0;
+                        }}
+                        
+                        if (vA < vB) return sortAsc ? -1 : 1;
+                        if (vA > vB) return sortAsc ? 1 : -1;
+                        return 0;
+                    }});
+                    
+                    filtered.forEach(function(a) {{
+                        var data = a.history[month];
+                        if (!data) return;
+                        
+                        var tr = document.createElement('tr');
+                        tr.className = "border-b border-gray-100 hover:bg-blue-50 transition-colors cursor-pointer";
+                        tr.onclick = function() {{ window.location = a.filename; }};
+                        
+                        tr.innerHTML = `
+                            <td class="py-4 px-6 font-medium text-blue-600 hover:underline"><a href="${{a.filename}}">${{a.name}}</a></td>
+                            <td class="py-4 px-6 text-right font-bold text-gray-800">${{new Intl.NumberFormat('en-US').format(data.momentum)}}</td>
+                            <td class="py-4 px-6 text-right font-bold text-pink-600">${{new Intl.NumberFormat('en-US').format(data.profile_magnetism)}}</td>
+                            <td class="py-4 px-6 text-right text-gray-600">${{new Intl.NumberFormat('en-US').format(data.total_impact)}}</td>
+                            <td class="py-4 px-6 text-right text-gray-600">${{data.productivity}}</td>
+                            <td class="py-4 px-6 text-right text-gray-600">${{data.efficiency.toFixed(1)}}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    }});
+                }}
+                
+                // Initial Render
+                renderTable();
+            </script>
+        </body>
+        </html>
+        """
+        
+        with open(os.path.join(self.output_dir, "yazarlar_karsilastirma.html"), "w", encoding="utf-8") as f:
+            f.write(html)
+
+def main():
+    gen = AuthorScorecardGenerator()
+    mapping = gen.load_mapping()
+    if mapping is None: 
+        return
+        
+    analytics_data = gen.load_or_fetch_data()
+    if analytics_data.empty:
+        print("No analytics data found.")
+        return
+        
+    scores = gen.calculate_scores(mapping, analytics_data)
+    gen.generate_htmls(scores)
+    print("Done!")
+
+if __name__ == "__main__":
+    main()

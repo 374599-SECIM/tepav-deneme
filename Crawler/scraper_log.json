@@ -1,0 +1,101 @@
+[
+    {
+        "timestamp": "2026-01-29T12:28:45.945882",
+        "results": {
+            "haberler": 73,
+            "blog": 73,
+            "yayin": 52,
+            "video": 0
+        }
+    },
+    {
+        "timestamp": "2026-01-29T13:40:19.275750",
+        "results": {
+            "haberler": 0,
+            "blog": 0,
+            "yayin": 0,
+            "video": 0
+        }
+    },
+    {
+        "timestamp": "2026-02-18T15:43:54.799976",
+        "results": {
+            "haberler": 0,
+            "blog": 0,
+            "yayin": 0,
+            "video": 0
+        }
+    },
+    {
+        "timestamp": "2026-02-18T15:45:31.193754",
+        "results": {
+            "haberler": 15,
+            "blog": 12,
+            "yayin": 13,
+            "video": 0
+        }
+    },
+    {
+        "timestamp": "2026-03-27T17:17:21.370470",
+        "results": {
+            "haberler": 31,
+            "blog": 18,
+            "yayin": 24,
+            "video": 0
+        }
+    },
+    {
+        "timestamp": "2026-03-28T17:24:34.859619",
+        "results": {
+            "haberler": 1,
+            "blog": 1,
+            "yayin": 1,
+            "video": 0
+        }
+    },
+    {
+        "timestamp": "2026-03-29T17:25:30.472677",
+        "results": {
+            "haberler": 0,
+            "blog": 0,
+            "yayin": 0,
+            "video": 0
+        }
+    },
+    {
+        "timestamp": "2026-03-30T07:59:34.775758",
+        "results": {
+            "haberler": 1,
+            "blog": 0,
+            "yayin": 0,
+            "video": 0
+        }
+    },
+    {
+        "timestamp": "2026-03-30T14:30:25.811393",
+        "results": {
+            "haberler": 0,
+            "blog": 0,
+            "yayin": 0,
+            "video": 0
+        }
+    },
+    {
+        "timestamp": "2026-03-31T08:34:26.910051",
+        "results": {
+            "haberler": 0,
+            "blog": 1,
+            "yayin": 0,
+            "video": 0
+        }
+    },
+    {
+        "timestamp": "2026-04-02T10:07:54.713037",
+        "results": {
+            "haberler": 0,
+            "blog": 2,
+            "yayin": 0,
+            "video": 0
+        }
+    }
+]

@@ -1,0 +1,37 @@
+# Güncellenmiş Sayfalar - Verifikasyon
+
+## ✅ TÜM SAYFALAR GÜNCELLENDİ (01.02.2026 01:41)
+
+### Ana Karşılaştırma Sayfası
+- `detay_raporlari/yazarlar_karsilastirma.html` - **01:41:17** ✓
+
+### Sercan Sevgili Scorecard
+- `detay_raporlari/tr_ekibimiz_s_1461.html` - **01:41:00** ✓
+
+### Diğer Etkilenen Yazarlar (Top 10)
+En son güncellenen scorecard'lar (01.02.2026 01:41):
+
+1. `tr_ekibimiz_s_1366.html` (Hilmi Demir) - 01:41:17
+2. `tr_ekibimiz_s_1447.html` - 01:41:17
+3. `tr_ekibimiz_s_1293.html` - 01:41:16
+4. `tr_ekibimiz_s_24.html` - 01:41:16
+5. `tr_ekibimiz_s_1423.html` (Gülbin Şahinbeyoğlu) - 01:41:16
+6. `tr_ekibimiz_s_1372.html` - 01:41:15
+7. `tr_ekibimiz_s_89.html` (Fatih Özatay) - 01:41:15
+8. `tr_ekibimiz_s_1346.html` - 01:41:15
+9. `tr_ekibimiz_s_1327.html` - 01:41:14
+
+### Toplam Scorecard Sayısı
+- **2,434 HTML dosya** detay_raporlari klasöründe
+
+## Güncelleme Kapsamı
+
+Son `generate_author_scorecard.py` çalıştırması (01:41) ile:
+- ✅ Tüm 114 author scorecard'ları güncellendi
+- ✅ Comparison hub (yazarlar_karsilastirma.html) güncellendi
+- ✅ Yeni mapping data (5,342 rows) kullanıldı
+- ✅ Sercan Sevgili'nin Total Impact 1,475 olarak güncellendi
+
+## Doğrulama
+
+Tüm dosyalar aynı timestamp'e sahip (01:41), yani tek batch'te güncellenmiş.
