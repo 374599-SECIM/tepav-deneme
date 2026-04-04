@@ -12,6 +12,7 @@ data/
 Crawler/*.xlsx
 Crawler/*.parquet
 Crawler/html_cache/
+Crawler/scraper_log.json
 
 # Scripts (only HTML goes to GitHub Pages)
 *.py
