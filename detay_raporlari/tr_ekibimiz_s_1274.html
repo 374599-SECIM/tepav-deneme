@@ -163,6 +163,8 @@
             
             
             
+            
+            
             <!-- TEPAV AUTHOR SCORECARD MODULE -->
             <div class="bg-gray-50 rounded-2xl p-6 mb-12 border border-gray-200" id="author-scorecard-root">
                 <div class="mb-4 flex justify-between items-center text-sm border-b border-gray-100 pb-2">
@@ -202,7 +204,7 @@
                  <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
                     <div class="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
                         <div class="text-xs font-bold text-gray-400 uppercase tracking-wider">Toplam Etki</div>
-                        <div class="text-2xl font-black text-blue-600 mt-1" id="val_impact">4</div>
+                        <div class="text-2xl font-black text-blue-600 mt-1" id="val_impact">3</div>
                         <div class="text-[9px] text-gray-500 mt-2 leading-tight">Tüm içeriklerin toplam etkileşim skoru (son 90 gün). Görüntülenme, indirme ve etkileşimlerin ağırlıklı toplamı.</div>
                     </div>
                     <div class="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
@@ -219,13 +221,13 @@
                     </div>
                     <div class="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
                         <div class="text-xs font-bold text-gray-400 uppercase tracking-wider">Verimlilik</div>
-                        <div class="text-2xl font-black text-green-600 mt-1" id="val_efficiency">1.3</div>
+                        <div class="text-2xl font-black text-green-600 mt-1" id="val_efficiency">1.5</div>
                         <div class="text-[10px] text-gray-400 mt-1">GÖRÜNTÜLENME / YAZI</div>
                         <div class="text-[9px] text-gray-500 mt-2 leading-tight">İçerik başına ortalama görüntülenme sayısı (son 90 gün). Kalite göstergesi: Her yazının ne kadar ilgi gördüğü.</div>
                     </div>
                     <div class="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
                         <div class="text-xs font-bold text-gray-400 uppercase tracking-wider">Üretkenlik</div>
-                        <div class="text-2xl font-black text-orange-600 mt-1" id="val_productivity">3</div>
+                        <div class="text-2xl font-black text-orange-600 mt-1" id="val_productivity">2</div>
                         <div class="text-[10px] text-gray-400 mt-1">TOPLAM YAZI (YILLIK)</div>
                         <div class="text-[9px] text-gray-500 mt-2 leading-tight">Yazara atfedilen toplam içerik sayısı. Yüksek değer, üretkenligi gösterir.</div>
                     </div>
@@ -248,8 +250,8 @@
 
             <script>
                 // Embedded Data
-                var historyData = {"2025-05": {"productivity": 0, "total_impact": 0, "efficiency": 0.0, "momentum": 0, "consistency": 0.0, "profile_magnetism": 0}, "2025-06": {"productivity": 0, "total_impact": 0, "efficiency": 0.0, "momentum": 0, "consistency": 0.0, "profile_magnetism": 0}, "2025-07": {"productivity": 0, "total_impact": 0, "efficiency": 0.0, "momentum": 0, "consistency": 0.0, "profile_magnetism": 0}, "2025-08": {"productivity": 0, "total_impact": 0, "efficiency": 0.0, "momentum": 0, "consistency": 0.0, "profile_magnetism": 0}, "2025-09": {"productivity": 0, "total_impact": 0, "efficiency": 0.0, "momentum": 0, "consistency": 0.0, "profile_magnetism": 0}, "2025-10": {"productivity": 0, "total_impact": 0, "efficiency": 0.0, "momentum": 0, "consistency": 0.0, "profile_magnetism": 0}, "2025-11": {"productivity": 1, "total_impact": 2, "efficiency": 2.0, "momentum": 3, "consistency": 0.0, "profile_magnetism": 3}, "2025-12": {"productivity": 2, "total_impact": 4, "efficiency": 2.0, "momentum": 8, "consistency": 0.0, "profile_magnetism": 8}, "2026-01": {"productivity": 3, "total_impact": 8, "efficiency": 2.6666666666666665, "momentum": 5, "consistency": 0.0, "profile_magnetism": 3}, "2026-02": {"productivity": 3, "total_impact": 6, "efficiency": 2.0, "momentum": 0, "consistency": 0.0, "profile_magnetism": 0}, "2026-03": {"productivity": 3, "total_impact": 4, "efficiency": 1.3333333333333333, "momentum": 0, "consistency": 0.0, "profile_magnetism": 0}, "2026-04": {"productivity": 3, "total_impact": 4, "efficiency": 1.3333333333333333, "momentum": 0, "consistency": 0.0, "profile_magnetism": 0}};
-                var normData = {"2025-05": {"productivity": 0.0, "total_impact": 0.0, "efficiency": 0.0, "momentum": 0.0, "consistency": 0.0, "profile_magnetism": 0.0}, "2025-06": {"productivity": 0.0, "total_impact": 0.0, "efficiency": 0.0, "momentum": 0.0, "consistency": 0.0, "profile_magnetism": 0.0}, "2025-07": {"productivity": 0.0, "total_impact": 0.0, "efficiency": 0.0, "momentum": 0.0, "consistency": 0.0, "profile_magnetism": 0.0}, "2025-08": {"productivity": 0.0, "total_impact": 0.0, "efficiency": 0.0, "momentum": 0.0, "consistency": 0.0, "profile_magnetism": 0.0}, "2025-09": {"productivity": 0.0, "total_impact": 0.0, "efficiency": 0.0, "momentum": 0.0, "consistency": 0.0, "profile_magnetism": 0.0}, "2025-10": {"productivity": 0.0, "total_impact": 0.0, "efficiency": 0.0, "momentum": 0.0, "consistency": 0.0, "profile_magnetism": 0.0}, "2025-11": {"productivity": 0.29239766081871343, "total_impact": 0.13605442176870747, "efficiency": 2.443991853360489, "momentum": 0.48543689320388345, "consistency": 0.0, "profile_magnetism": 1.25}, "2025-12": {"productivity": 0.3115264797507788, "total_impact": 0.09886307464162135, "efficiency": 1.6293279022403258, "momentum": 0.5645730416372619, "consistency": 0.0, "profile_magnetism": 2.9850746268656714}, "2026-01": {"productivity": 0.38510911424903727, "total_impact": 0.12876227265411236, "efficiency": 1.7837235228539576, "momentum": 0.4703668861712135, "consistency": 0.0, "profile_magnetism": 0.28735632183908044}, "2026-02": {"productivity": 0.40431266846361186, "total_impact": 0.1265022137887413, "efficiency": 1.3377926421404682, "momentum": 0.0, "consistency": 0.0, "profile_magnetism": 0.0}, "2026-03": {"productivity": 0.53475935828877, "total_impact": 0.18467220683287164, "efficiency": 1.5130023640661938, "momentum": 0.0, "consistency": 0.0, "profile_magnetism": 0.0}, "2026-04": {"productivity": 0.7874015748031495, "total_impact": 0.28328611898017, "efficiency": 1.6692749087115284, "momentum": 0.0, "consistency": 0.0, "profile_magnetism": 0.0}};
+                var historyData = {"2025-05": {"productivity": 0, "total_impact": 0, "efficiency": 0.0, "momentum": 0, "consistency": 0.0, "profile_magnetism": 0}, "2025-06": {"productivity": 0, "total_impact": 0, "efficiency": 0.0, "momentum": 0, "consistency": 0.0, "profile_magnetism": 0}, "2025-07": {"productivity": 0, "total_impact": 0, "efficiency": 0.0, "momentum": 0, "consistency": 0.0, "profile_magnetism": 0}, "2025-08": {"productivity": 0, "total_impact": 0, "efficiency": 0.0, "momentum": 0, "consistency": 0.0, "profile_magnetism": 0}, "2025-09": {"productivity": 0, "total_impact": 0, "efficiency": 0.0, "momentum": 0, "consistency": 0.0, "profile_magnetism": 0}, "2025-10": {"productivity": 0, "total_impact": 0, "efficiency": 0.0, "momentum": 0, "consistency": 0.0, "profile_magnetism": 0}, "2025-11": {"productivity": 1, "total_impact": 2, "efficiency": 2.0, "momentum": 3, "consistency": 0.0, "profile_magnetism": 3}, "2025-12": {"productivity": 2, "total_impact": 4, "efficiency": 2.0, "momentum": 8, "consistency": 0.0, "profile_magnetism": 8}, "2026-01": {"productivity": 3, "total_impact": 8, "efficiency": 2.6666666666666665, "momentum": 5, "consistency": 0.0, "profile_magnetism": 3}, "2026-02": {"productivity": 3, "total_impact": 6, "efficiency": 2.0, "momentum": 0, "consistency": 0.0, "profile_magnetism": 0}, "2026-03": {"productivity": 3, "total_impact": 4, "efficiency": 1.3333333333333333, "momentum": 0, "consistency": 0.0, "profile_magnetism": 0}, "2026-04": {"productivity": 2, "total_impact": 3, "efficiency": 1.5, "momentum": 0, "consistency": 0.0, "profile_magnetism": 0}};
+                var normData = {"2025-05": {"productivity": 0.0, "total_impact": 0.0, "efficiency": 0.0, "momentum": 0.0, "consistency": 0.0, "profile_magnetism": 0.0}, "2025-06": {"productivity": 0.0, "total_impact": 0.0, "efficiency": 0.0, "momentum": 0.0, "consistency": 0.0, "profile_magnetism": 0.0}, "2025-07": {"productivity": 0.0, "total_impact": 0.0, "efficiency": 0.0, "momentum": 0.0, "consistency": 0.0, "profile_magnetism": 0.0}, "2025-08": {"productivity": 0.0, "total_impact": 0.0, "efficiency": 0.0, "momentum": 0.0, "consistency": 0.0, "profile_magnetism": 0.0}, "2025-09": {"productivity": 0.0, "total_impact": 0.0, "efficiency": 0.0, "momentum": 0.0, "consistency": 0.0, "profile_magnetism": 0.0}, "2025-10": {"productivity": 0.0, "total_impact": 0.0, "efficiency": 0.0, "momentum": 0.0, "consistency": 0.0, "profile_magnetism": 0.0}, "2025-11": {"productivity": 0.29239766081871343, "total_impact": 0.13605442176870747, "efficiency": 2.443991853360489, "momentum": 0.48543689320388345, "consistency": 0.0, "profile_magnetism": 1.25}, "2025-12": {"productivity": 0.3115264797507788, "total_impact": 0.09886307464162135, "efficiency": 1.6293279022403258, "momentum": 0.5645730416372619, "consistency": 0.0, "profile_magnetism": 2.9850746268656714}, "2026-01": {"productivity": 0.38510911424903727, "total_impact": 0.12876227265411236, "efficiency": 1.7837235228539576, "momentum": 0.4703668861712135, "consistency": 0.0, "profile_magnetism": 0.28735632183908044}, "2026-02": {"productivity": 0.40431266846361186, "total_impact": 0.1265022137887413, "efficiency": 1.3377926421404682, "momentum": 0.0, "consistency": 0.0, "profile_magnetism": 0.0}, "2026-03": {"productivity": 0.53475935828877, "total_impact": 0.18467220683287164, "efficiency": 1.5130023640661938, "momentum": 0.0, "consistency": 0.0, "profile_magnetism": 0.0}, "2026-04": {"productivity": 0.7299270072992701, "total_impact": 0.32119914346895073, "efficiency": 2.9629629629629632, "momentum": 0.0, "consistency": 0.0, "profile_magnetism": 0.0}};
 
                 // --- Logic ---
                 // Populate Dropdown
@@ -338,6 +340,8 @@
 
             </script>
             <!-- END SCORECARD MODULE -->
+            
+            
             
             
             
